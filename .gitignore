@@ -52,6 +52,5 @@ Mkfile.old
 dkms.conf
 bin
 obj
-libctm.cbp
 libctm.depend
 libctm.layout
