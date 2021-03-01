@@ -1,0 +1,71 @@
+# depslib dependency file v1.0
+1614034114 source:c:\users\delros\documents\my stuff\codeblocks\libctm\eelvl.c
+	<zlib.h>
+	<stdlib.h>
+	<stdbool.h>
+	"eelvl.h"
+	"binaryreader.h"
+	"tile.h"
+
+1614017017 c:\users\delros\documents\my stuff\codeblocks\libctm\eelvl.h
+	<stdio.h>
+	<stdbool.h>
+	"tile.h"
+	"text.h"
+
+1614054326 source:c:\users\delros\documents\my stuff\codeblocks\libctm\etm.c
+	<stdbool.h>
+	"etm.h"
+
+1614050533 c:\users\delros\documents\my stuff\codeblocks\libctm\etm.h
+	"eelvl.h"
+
+1614012117 c:\users\delros\documents\my stuff\codeblocks\libctm\binaryreader.h
+	<stdbool.h>
+	"text.h"
+
+1614014688 source:c:\users\delros\documents\my stuff\codeblocks\libctm\binaryreader.c
+	<stdio.h>
+	<string.h>
+	<stdlib.h>
+	"binaryreader.h"
+
+1613946292 c:\users\delros\documents\my stuff\codeblocks\libctm\text.h
+
+1613872297 source:c:\users\delros\documents\my stuff\codeblocks\libctm\text.c
+	<stdio.h>
+	"text.h"
+
+1614023679 source:c:\users\delros\documents\my stuff\codeblocks\libctm\tile.c
+	"binaryreader.h"
+	"tile.h"
+
+1614036511 c:\users\delros\documents\my stuff\codeblocks\libctm\tile.h
+	<stdlib.h>
+	<string.h>
+	"binaryreader.h"
+	"text.h"
+
+1614559344 source:c:\users\delros\documents\my stuff\codeblocks\libctm\ctm.c
+	<stdbool.h>
+	<stdlib.h>
+	"ctm.h"
+
+1614554555 c:\users\delros\documents\my stuff\codeblocks\libctm\ctm.h
+	<stdbool.h>
+	"bitreader.h"
+	"bitwriter.h"
+	"eelvl.h"
+
+1614220907 source:c:\users\delros\documents\my stuff\codeblocks\libctm\bitreader.c
+	"bitreader.h"
+
+1614220992 c:\users\delros\documents\my stuff\codeblocks\libctm\bitreader.h
+	<stdbool.h>
+
+1614221784 source:c:\users\delros\documents\my stuff\codeblocks\libctm\bitwriter.c
+	"bitwriter.h"
+
+1614221762 c:\users\delros\documents\my stuff\codeblocks\libctm\bitwriter.h
+	<stdbool.h>
+
