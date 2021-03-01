@@ -1,3 +1,5 @@
+// [delros] why does github see this as an Objective-C file? github, go home, you're drunk
+
 #include <stdlib.h>
 #include <string.h>
 
