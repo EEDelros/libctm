@@ -27,7 +27,8 @@ enum block_types
 };
 
 // [delros] lol jesus christ this look-up table is huge
-const static unsigned char block_types_look_up_table[2048] = {
+const static unsigned char block_types_look_up_table[2048] =
+{
     [327] = BLOCK_MORPHABLE, [328] = BLOCK_MORPHABLE, [273] = BLOCK_MORPHABLE, [440] = BLOCK_MORPHABLE, [276] = BLOCK_MORPHABLE,
     [277] = BLOCK_MORPHABLE, [279] = BLOCK_MORPHABLE, [280] = BLOCK_MORPHABLE, [447] = BLOCK_MORPHABLE, [449] = BLOCK_MORPHABLE,
     [450] = BLOCK_MORPHABLE, [451] = BLOCK_MORPHABLE, [452] = BLOCK_MORPHABLE, [456] = BLOCK_MORPHABLE, [457] = BLOCK_MORPHABLE,
