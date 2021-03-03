@@ -457,6 +457,120 @@ void compress_to_line_rectangles(struct block_chunk *block_chunk)
     printf("\n\n");
 }
 
+void compress_to_positional_block_lines(struct block_chunk *block_chunk)
+{
+    unsigned char block_chunk_bytes[BLOCK_SIZE_POWER_OF_TWO*4 + 1];
+    struct bit_writer bit_writer = new_bit_writer(block_chunk_bytes);
+    register int i = 0;
+
+    write_bits(&bit_writer, 0b00000000, 1);
+    write_bits(&bit_writer, 0b01000000, 4);
+
+    unsigned char look_up_table_size = block_chunk->different_block_count - 1;
+    int length_bit_usage = get_bit_usage(look_up_table_size);
+    write_bits(&bit_writer, look_up_table_size, 8);
+
+    // GET DELTA ID WITH MOST BIT-CONSUMPTION
+    unsigned short biggest_delta_id = 0;
+    unsigned short last_id = 0;
+    for (register int i = 0; i < block_chunk->different_block_count; i++)
+    {
+        unsigned short id = block_chunk->different_block_ids[i];
+        biggest_delta_id = max(biggest_delta_id, id - last_id);
+        last_id = id;
+    }
+
+    int biggest_delta_id_bit_usage = get_bit_usage(biggest_delta_id);
+    unsigned short x = min(8, biggest_delta_id_bit_usage);
+
+    // write the bit consumption of any block id in our block chunk's block dictionary
+    write_bits(&bit_writer, biggest_delta_id_bit_usage, 4);
+
+    //
+    unsigned char block_line_id_count[block_chunk->different_block_count];
+    memset(block_line_id_count, 0, block_chunk->different_block_count);
+
+    for (register int i = 0; i < block_chunk->block_line_count; i++)
+        block_line_id_count[block_chunk->block_lines[i].id]++;
+
+    unsigned char heaviest_block_lines_id = 0;
+    for (register int i = 0; i < block_chunk->different_block_count; i++)
+        if (block_line_id_count[i] >
+            block_line_id_count[heaviest_block_lines_id])
+                heaviest_block_lines_id = i;
+
+    unsigned char usable_line_count = 0;
+    unsigned char biggest_position_delta = 0;
+    unsigned char previous_position = 0;
+    for (register int i = 0; i < block_chunk->block_line_count; i++)
+    {
+        struct block_line *block_line = &block_chunk->block_lines[i];
+        if (block_line->id != heaviest_block_lines_id)
+        {
+            unsigned char delta_position = block_line->position - previous_position;
+            if (delta_position > biggest_position_delta)
+                biggest_position_delta = delta_position;
+            previous_position = block_line->position;
+            usable_line_count++;
+        }
+    }
+    unsigned char position_max_bits = 0;
+     // in decoding, we will add a +1
+    if (biggest_position_delta - 1 > 0)
+        position_max_bits = get_bit_usage(biggest_position_delta - 1);
+
+    write_bits(&bit_writer, position_max_bits, 4);
+    //
+
+    // WRITE ALL IDS
+    last_id = 0;
+    for (i = 0; i < block_chunk->different_block_count; i++)
+    {
+        unsigned short id = block_chunk->different_block_ids[i];
+
+        write_bits(&bit_writer, (id - last_id) << (8 - x), x);
+        if (biggest_delta_id_bit_usage > 8)
+            write_bits(&bit_writer, (id - last_id) << (biggest_delta_id_bit_usage - 8), biggest_delta_id_bit_usage - 8);
+
+        last_id = id;
+    }
+
+    // WRITE THE CONTENTS
+    write_bits(&bit_writer, usable_line_count, 8);
+    for (i = 0; i < block_chunk->block_line_count; i++)
+    {
+        struct block_line *block_line = &block_chunk->block_lines[i];
+        if (block_line->id != heaviest_block_lines_id)
+        {
+            unsigned char x = block_line->position & 0x0F;
+            unsigned char y = (block_line->position & 0xF0) >> 4;
+            unsigned char length_usage = get_bit_usage(15 - (block_line->vertical == true? y : x));
+            unsigned char position_usage = get_bit_usage(255 - block_line->position);
+            if (position_usage > position_max_bits)
+                position_usage = position_max_bits;
+
+            //position_usage + 1 + length_usage;
+            printf("REAL - total line usage: %u\n", position_usage + 1 + length_usage + length_bit_usage);
+            write_bits(&bit_writer, block_line->position << (8 - position_usage), position_usage);
+            write_bits(&bit_writer, block_line->vertical << 7, 1);
+            write_bits(&bit_writer, block_line->length << (8 - length_usage), length_usage);
+            write_bits(&bit_writer, block_line->id << (8 - length_bit_usage), length_bit_usage);
+        }
+    }
+
+    // were done writing data
+    int data_size = bit_writer.position >> 3;
+    if (bit_writer.buffer_position > 0) data_size++;
+    end_writer(&bit_writer);
+
+    // print our DEETA
+    printf("16x16 block chunk bytes: %u\n", data_size);
+    printf("data: \n");
+    for (register int i = 0; i < data_size; i++)
+        printf("%c", block_chunk_bytes[i]);
+    printf("\n\n");
+}
+
 void encode(struct block_chunk *block_chunk)
 {
     unsigned int length_bit_usage = get_bit_usage(block_chunk->different_block_count - 1);
@@ -489,7 +603,7 @@ void encode(struct block_chunk *block_chunk)
         unsigned char width_usage = get_bit_usage(15 - x);
         unsigned char height_usage = get_bit_usage(15 - y);
 
-        printf("rect size usage: %u\n", width_usage + height_usage);
+        //printf("rect size usage: %u\n", width_usage + height_usage);
         block_rectangle_chunk_bound += width_usage + height_usage + length_bit_usage;
     }
 
@@ -524,7 +638,7 @@ void encode(struct block_chunk *block_chunk)
     if (biggest_position_delta - 1 > 0)
         position_max_bits = get_bit_usage(biggest_position_delta - 1);
 
-    printf("pos bits limit: %u as highest is %u\n", position_max_bits, biggest_position_delta);
+    //printf("pos bits limit: %u as highest is %u\n", position_max_bits, biggest_position_delta);
 
     unsigned int block_rectangle_chunk_bound_def_block =
         5 + 8 + 4 + 4 + biggest_delta_id_bit_usage*block_chunk->different_block_count + 8;
@@ -543,7 +657,7 @@ void encode(struct block_chunk *block_chunk)
             if (position_usage > position_max_bits)
                 position_usage = position_max_bits;
 
-            printf("pos: %u, bits: %u\n", block_rectangle->position, position_usage);
+            //printf("pos: %u, bits: %u\n", block_rectangle->position, position_usage);
 
             block_rectangle_chunk_bound_def_block +=
                 position_usage + width_usage + height_usage + length_bit_usage;
@@ -572,9 +686,67 @@ void encode(struct block_chunk *block_chunk)
         block_line_chunk_bound += 1 + length_usage + length_bit_usage;
     }
 
+    //
+    unsigned char block_line_id_count[block_chunk->different_block_count];
+    memset(block_line_id_count, 0, block_chunk->different_block_count);
+
+    for (register int i = 0; i < block_chunk->block_line_count; i++)
+        block_line_id_count[block_chunk->block_lines[i].id]++;
+
+    unsigned char heaviest_block_lines_id = 0;
+    for (register int i = 0; i < block_chunk->different_block_count; i++)
+        if (block_line_id_count[i] >
+            block_line_id_count[heaviest_block_lines_id])
+                heaviest_block_lines_id = i;
+
+    biggest_position_delta = 0;
+    previous_position = 0;
+    for (register int i = 0; i < block_chunk->block_line_count; i++)
+    {
+        struct block_line *block_line = &block_chunk->block_lines[i];
+        if (block_line->id != heaviest_block_lines_id)
+        {
+            unsigned char delta_position = block_line->position - previous_position;
+            if (delta_position > biggest_position_delta)
+                biggest_position_delta = delta_position;
+            previous_position = block_line->position;
+        }
+    }
+    position_max_bits = 0;
+     // in decoding, we will add a +1
+    if (biggest_position_delta - 1 > 0)
+        position_max_bits = get_bit_usage(biggest_position_delta - 1);
+
+    printf("pos bits limit: %u as highest is %u\n", position_max_bits, biggest_position_delta);
+
+    unsigned int block_line_chunk_bound_def_block =
+        5 + 8 + 4 + 4 + biggest_delta_id_bit_usage*block_chunk->different_block_count + 8;
+
+    for (register int i = 0; i < block_chunk->block_line_count; i++)
+    {
+        struct block_line *block_line = &block_chunk->block_lines[i];
+        if (block_line->id != heaviest_block_lines_id)
+        {
+            unsigned char x = block_line->position & 0x0F;
+            unsigned char y = (block_line->position & 0xF0) >> 4;
+            unsigned char length_usage = get_bit_usage(15 - (block_line->vertical == true? y : x));
+            unsigned char position_usage = get_bit_usage(255 - block_line->position);
+            if (position_usage > position_max_bits)
+                position_usage = position_max_bits;
+
+            //printf("line pos: %u, bits: %u\n", block_line->position, position_usage);
+            printf("PRED - total line usage: %u\n", position_usage + 1 + length_usage + length_bit_usage);
+
+            block_line_chunk_bound_def_block +=
+                position_usage + 1 + length_usage + length_bit_usage;
+        }
+    }
+    //
+
     printf("predicted bit usage (block rectangle compression): %u\n", block_rectangle_chunk_bound);
     printf("predicted bit usage (block line compression): %u\n", block_line_chunk_bound);
     printf("predicted bit usage (positional block rectangle compression): %u\n", block_rectangle_chunk_bound_def_block);
+    printf("predicted bit usage (positional block line compression): %u\n", block_line_chunk_bound_def_block);
     printf("predicted bit usage (block array compression): %u\n", block_array_chunk_bound);
     printf("predicted bit usage (id array compression): %u\n", id_array_chunk_bound);
     printf("\n");
@@ -588,9 +760,10 @@ void encode(struct block_chunk *block_chunk)
         [3] = id_array_chunk_bound,
         [4] = block_rectangle_chunk_bound_def_block,
         [5] = block_line_chunk_bound,
+        [6] = block_line_chunk_bound_def_block
     };
     unsigned char selected_chunk_type = 0;
-    for (register int i = 0; i < 6; i++)
+    for (register int i = 0; i < 7; i++)
         if (predicted_bit_usages[selected_chunk_type] >
             predicted_bit_usages[i])
                 selected_chunk_type = i;
@@ -626,6 +799,11 @@ void encode(struct block_chunk *block_chunk)
     {
         printf("selected compression: block line chunk\n\n");
         compress_to_line_rectangles(block_chunk);
+    }
+    else if (selected_chunk_type == 6)
+    {
+        printf("selected compression: positional block line chunk\n\n");
+        compress_to_positional_block_lines(block_chunk);
     }
 }
 
