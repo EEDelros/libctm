@@ -41,31 +41,37 @@
 				</Linker>
 			</Target>
 		</Build>
-		<Unit filename="binaryreader.c">
+		<Compiler>
+			<Add directory="include" />
+		</Compiler>
+		<Linker>
+			<Add directory="include" />
+		</Linker>
+		<Unit filename="include/binaryreader.h" />
+		<Unit filename="include/bitreader.h" />
+		<Unit filename="include/bitwriter.h" />
+		<Unit filename="include/ctm.h" />
+		<Unit filename="include/eelvl.h" />
+		<Unit filename="include/text.h" />
+		<Unit filename="include/tile.h" />
+		<Unit filename="src/binaryreader.c">
 			<Option compilerVar="CC" />
 		</Unit>
-		<Unit filename="binaryreader.h" />
-		<Unit filename="bitreader.c">
+		<Unit filename="src/bitreader.c">
 			<Option compilerVar="CC" />
 		</Unit>
-		<Unit filename="bitreader.h" />
-		<Unit filename="bitwriter.c">
+		<Unit filename="src/bitwriter.c">
 			<Option compilerVar="CC" />
 		</Unit>
-		<Unit filename="bitwriter.h" />
-		<Unit filename="ctm.c">
+		<Unit filename="src/ctm.c">
 			<Option compilerVar="CC" />
 		</Unit>
-		<Unit filename="ctm.h" />
-		<Unit filename="eelvl.c">
+		<Unit filename="src/eelvl.c">
 			<Option compilerVar="CC" />
 		</Unit>
-		<Unit filename="eelvl.h" />
-		<Unit filename="text.h" />
-		<Unit filename="tile.c">
+		<Unit filename="src/tile.c">
 			<Option compilerVar="CC" />
 		</Unit>
-		<Unit filename="tile.h" />
 		<Extensions>
 			<lib_finder disable_auto="1" />
 		</Extensions>
