@@ -13,6 +13,7 @@ struct bit_writer new_bit_writer(unsigned char *target)
 
 void write_bits(struct bit_writer *bit_writer, unsigned char byte, unsigned char bits)
 {
+    if (bits == 0) return;
     unsigned char length = bit_writer->buffer_position + bits;
 
     unsigned short mask = 0xFF >> length;
