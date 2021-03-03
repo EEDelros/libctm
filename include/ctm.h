@@ -9,18 +9,28 @@
 #ifndef CTM_H_INCLUDED
 #define CTM_H_INCLUDED
 
+struct block_line
+{
+    unsigned char position;
+    unsigned char length;
+    bool vertical;
+    unsigned char id;
+} block_line;
+
 struct block_rectangle
 {
     unsigned char position;
     unsigned char size;
     unsigned char id;
-    bool initialized;
 } block_rectangle;
 
 struct block_chunk
 {
     struct block_rectangle *block_rectangles;
     unsigned short block_rectangle_count;
+
+    struct block_line *block_lines;
+    unsigned short block_line_count;
 
     unsigned short *different_block_ids;
     unsigned short different_block_count;
