@@ -175,6 +175,7 @@ void compress_to_positional_block_rectangles(struct block_chunk *block_chunk)
             block_rectangle_id_count[heaviest_block_rectangles_id])
                 heaviest_block_rectangles_id = i;
 
+    unsigned char usable_rectangle_count = 0;
     unsigned char biggest_position_delta = 0;
     unsigned char previous_position = 0;
     for (register int i = 0; i < block_chunk->block_rectangle_count; i++)
@@ -186,6 +187,7 @@ void compress_to_positional_block_rectangles(struct block_chunk *block_chunk)
             if (delta_position > biggest_position_delta)
                 biggest_position_delta = delta_position;
             previous_position = block_rectangle->position;
+            usable_rectangle_count++;
         }
     }
     unsigned char position_max_bits = 0;
@@ -210,7 +212,7 @@ void compress_to_positional_block_rectangles(struct block_chunk *block_chunk)
     }
 
     // WRITE THE CONTENTS
-    write_bits(&bit_writer, block_chunk->block_rectangle_count - 1, 8);
+    write_bits(&bit_writer, usable_rectangle_count, 8);
     for (i = 0; i < block_chunk->block_rectangle_count; i++)
     {
         struct block_rectangle *block_rectangle = &block_chunk->block_rectangles[i];
@@ -385,6 +387,76 @@ void compress_to_id_array(struct block_chunk *block_chunk)
     printf("\n\n");
 }
 
+void compress_to_line_rectangles(struct block_chunk *block_chunk)
+{
+    unsigned char block_chunk_bytes[BLOCK_SIZE_POWER_OF_TWO*4 + 1];
+    struct bit_writer bit_writer = new_bit_writer(block_chunk_bytes);
+    register int i = 0;
+
+    write_bits(&bit_writer, 0b00000000, 1);
+    write_bits(&bit_writer, 0b00000000, 4);
+
+    unsigned char look_up_table_size = block_chunk->different_block_count - 1;
+    int length_bit_usage = get_bit_usage(look_up_table_size);
+    write_bits(&bit_writer, look_up_table_size, 8);
+
+    // GET DELTA ID WITH MOST BIT-CONSUMPTION
+    unsigned short biggest_delta_id = 0;
+    unsigned short last_id = 0;
+    for (register int i = 0; i < block_chunk->different_block_count; i++)
+    {
+        unsigned short id = block_chunk->different_block_ids[i];
+        biggest_delta_id = max(biggest_delta_id, id - last_id);
+        last_id = id;
+    }
+
+    int biggest_delta_id_bit_usage = get_bit_usage(biggest_delta_id);
+    unsigned short x = min(8, biggest_delta_id_bit_usage);
+
+    // write the bit consumption of any block id in our block chunk's block dictionary
+    write_bits(&bit_writer, biggest_delta_id_bit_usage, 4);
+
+    // WRITE ALL IDS
+    last_id = 0;
+    for (i = 0; i < block_chunk->different_block_count; i++)
+    {
+        unsigned short id = block_chunk->different_block_ids[i];
+
+        write_bits(&bit_writer, (id - last_id) << (8 - x), x);
+        if (biggest_delta_id_bit_usage > 8)
+            write_bits(&bit_writer, (id - last_id) << (biggest_delta_id_bit_usage - 8), biggest_delta_id_bit_usage - 8);
+
+        last_id = id;
+    }
+
+    // WRITE THE CONTENTS
+    write_bits(&bit_writer, block_chunk->block_line_count - 1, 8);
+    for (register int i = 0; i < block_chunk->block_line_count; i++)
+    {
+        struct block_line *block_line = &block_chunk->block_lines[i];
+
+        unsigned char x = block_line->position & 0x0F;
+        unsigned char y = (block_line->position & 0xF0) >> 4;
+        unsigned char length_usage = get_bit_usage(15 - (block_line->vertical == true? y : x));
+
+        write_bits(&bit_writer, block_line->vertical << 7, 1);
+        write_bits(&bit_writer, block_line->length << (4 - length_usage), length_usage);
+        write_bits(&bit_writer, block_line->id << (8 - length_bit_usage), length_bit_usage);
+    }
+
+    // were done writing data
+    int data_size = bit_writer.position >> 3;
+    if (bit_writer.buffer_position > 0) data_size++;
+    end_writer(&bit_writer);
+
+    // print our DEETA
+    printf("16x16 block chunk bytes: %u\n", data_size);
+    printf("data: \n");
+    for (register int i = 0; i < data_size; i++)
+        printf("%c", block_chunk_bytes[i]);
+    printf("\n\n");
+}
+
 void encode(struct block_chunk *block_chunk)
 {
     unsigned int length_bit_usage = get_bit_usage(block_chunk->different_block_count - 1);
@@ -485,7 +557,23 @@ void encode(struct block_chunk *block_chunk)
 
     unsigned int id_array_chunk_bound = 5 + biggest_id_bit_usage*BLOCK_SIZE_POWER_OF_TWO;
 
+    unsigned int block_line_chunk_bound =
+        5 + 8 + 4 + biggest_delta_id_bit_usage*block_chunk->different_block_count + 8;
+
+    for (register int i = 0; i < block_chunk->block_line_count; i++)
+    {
+        struct block_line *block_line = &block_chunk->block_lines[i];
+
+        unsigned char x = block_line->position & 0x0F;
+        unsigned char y = (block_line->position & 0xF0) >> 4;
+        unsigned char length_usage = get_bit_usage(15 - (block_line->vertical == true? y : x));
+
+        printf("line length usage: %u\n", length_usage);
+        block_line_chunk_bound += 1 + length_usage + length_bit_usage;
+    }
+
     printf("predicted bit usage (block rectangle compression): %u\n", block_rectangle_chunk_bound);
+    printf("predicted bit usage (block line compression): %u\n", block_line_chunk_bound);
     printf("predicted bit usage (positional block rectangle compression): %u\n", block_rectangle_chunk_bound_def_block);
     printf("predicted bit usage (block array compression): %u\n", block_array_chunk_bound);
     printf("predicted bit usage (id array compression): %u\n", id_array_chunk_bound);
@@ -499,9 +587,10 @@ void encode(struct block_chunk *block_chunk)
         //[2] = block filled chunk, (however its unnecessary to include as this only matters when theres 1 unique block)
         [3] = id_array_chunk_bound,
         [4] = block_rectangle_chunk_bound_def_block,
+        [5] = block_line_chunk_bound,
     };
     unsigned char selected_chunk_type = 0;
-    for (register int i = 0; i < 5; i++)
+    for (register int i = 0; i < 6; i++)
         if (predicted_bit_usages[selected_chunk_type] >
             predicted_bit_usages[i])
                 selected_chunk_type = i;
@@ -533,6 +622,11 @@ void encode(struct block_chunk *block_chunk)
         printf("selected compression: positional block rectangle chunk\n\n");
         compress_to_positional_block_rectangles(block_chunk);
     }
+    else if (selected_chunk_type == 5)
+    {
+        printf("selected compression: block line chunk\n\n");
+        compress_to_line_rectangles(block_chunk);
+    }
 }
 
 int compare(const void *a, const void *b)
@@ -545,13 +639,17 @@ void DLL_EXPORT eelvl_to_ctm(struct eelvl *level)
 {
     struct block_chunk block_chunk;
     block_chunk.block_rectangles = calloc(BLOCK_SIZE_POWER_OF_TWO, sizeof(block_rectangle));
+    block_chunk.block_lines = calloc(BLOCK_SIZE_POWER_OF_TWO, sizeof(block_line));
     block_chunk.different_block_ids = calloc(BLOCK_SIZE_POWER_OF_TWO, sizeof(unsigned short));
     block_chunk.block_rectangle_count = 0;
+    block_chunk.block_line_count = 0;
     block_chunk.different_block_count = 0;
 
     struct block_rectangle current_block_rectangle;
-
     int *block_rectangle_pointers = calloc(BLOCK_SIZE_POWER_OF_TWO, sizeof(int));
+
+    struct block_line current_block_line;
+    int *block_line_pointers = calloc(BLOCK_SIZE_POWER_OF_TWO, sizeof(int));
 
     unsigned short last_id = 0;
     unsigned char dictionary_position = 0;
@@ -584,7 +682,7 @@ void DLL_EXPORT eelvl_to_ctm(struct eelvl *level)
                 block_chunk.different_block_count++;
             }
 
-            // OPTIMIZATION #2
+            // OPTIMIZATION #2 (BLOCK RECT)
             if (last_id != block.id || x == 0 || x == BLOCK_SIZE - 1)
             {
                 if (last_id == block.id)
@@ -651,7 +749,6 @@ void DLL_EXPORT eelvl_to_ctm(struct eelvl *level)
                         skipped_block_rectangle->id = dictionary_position;
                         skipped_block_rectangle->position = skipped_position;
                         skipped_block_rectangle->size = 0;
-                        skipped_block_rectangle->initialized = true;
 
                         block_rectangle_pointers[skipped_position] = block_chunk.block_rectangle_count + 1;
                         printf("block added at: %u,%u\n",
@@ -664,7 +761,6 @@ void DLL_EXPORT eelvl_to_ctm(struct eelvl *level)
                 current_block_rectangle.id = dictionary_position;
                 current_block_rectangle.position = x + y*BLOCK_SIZE;
                 current_block_rectangle.size = 0;
-                current_block_rectangle.initialized = true;
             }
             else
             {
@@ -674,7 +770,133 @@ void DLL_EXPORT eelvl_to_ctm(struct eelvl *level)
             last_id = block.id;
         }
     }
+
+    unsigned char force_create_blocks = 0;
+    for (register int y = 0; y < BLOCK_SIZE; y++)
+    {
+        for (register int x = 0; x < BLOCK_SIZE; x++)
+        {
+            struct tile block = level->tiles[x + y*level->width];
+
+            if (last_id != block.id || (x == 0 && y == 0))
+            {
+                for (register int i = 0; i < block_chunk.different_block_count; i++)
+                {
+                    if (block.id == block_chunk.different_block_ids[i])
+                    {
+                        dictionary_position = i;
+                        break;
+                    }
+                }
+            }
+
+            // OPTIMIZATION #2.5 (BLOCK LINE)
+            if (last_id != block.id || force_create_blocks > 0 || x == 0 || x == BLOCK_SIZE - 1)
+            {
+                if (last_id == block.id && force_create_blocks <= 0)
+                {
+                    current_block_line.length++;
+                    current_block_line.vertical = false;
+                }
+
+                if (force_create_blocks > 0)
+                    force_create_blocks--;
+
+                bool add_block_line = true;
+                if (x > 0)
+                {
+                    if (y > 0)
+                    {
+                        int point_to = block_line_pointers[current_block_line.position - BLOCK_SIZE] - 1;
+                        if (point_to >= 0)
+                        {
+                            struct block_line *above_block_line = &block_chunk.block_lines[point_to];
+                            if (current_block_line.id == above_block_line->id &&
+                                current_block_line.length == 0 && above_block_line->vertical == true)
+                            {
+                                add_block_line = false;
+                                above_block_line->length++;
+                                block_line_pointers[current_block_line.position] = point_to + 1;
+                            }
+                        }
+                    }
+                    if (add_block_line == true)
+                    {
+                        block_chunk.block_lines[block_chunk.block_line_count] = current_block_line;
+                        block_line_pointers[current_block_line.position] = block_chunk.block_line_count + 1;
+                        block_chunk.block_line_count++;
+                    }
+                }
+                if (last_id != block.id && x == BLOCK_SIZE - 1)
+                {
+                    struct block_line *skipped_block_line =
+                        &block_chunk.block_lines[block_chunk.block_line_count];
+
+                    unsigned char skipped_position = current_block_line.position + 1;
+                    if (current_block_line.vertical == false)
+                        skipped_position += current_block_line.length;
+
+                    int point_to = -1;
+                    if (y > 0)
+                        point_to = block_line_pointers[skipped_position - BLOCK_SIZE] - 1;
+
+                    bool m = true;
+                    if (point_to >= 0)
+                    {
+                        struct block_line *above_block_line = &block_chunk.block_lines[point_to];
+                        if (dictionary_position == above_block_line->id)
+                        {
+                            // make the above block taller
+                            above_block_line->length++;
+                            block_line_pointers[skipped_position] = point_to + 1;
+
+                            m = false;
+                        }
+                    }
+                    if (m == true)
+                    {
+                        // CREATE A NEW BLOCK
+                        skipped_block_line->id = dictionary_position;
+                        skipped_block_line->position = skipped_position;
+                        skipped_block_line->length = 0;
+                        skipped_block_line->vertical = true;
+
+                        block_line_pointers[skipped_position] = block_chunk.block_line_count + 1;
+                        printf("block added at: %u,%u\n",
+                               skipped_position & 0x0F, (skipped_position & 0xF0) >> 4);
+
+                        block_chunk.block_line_count++;
+                    }
+                }
+
+                current_block_line.id = dictionary_position;
+                current_block_line.position = x + y*BLOCK_SIZE;
+                current_block_line.length = 0;
+                current_block_line.vertical = true;
+
+                struct block_rectangle *block_rectangle =
+                    &block_chunk.block_rectangles[
+                        block_rectangle_pointers[current_block_line.position] - 1
+                    ];
+                if (block_rectangle != NULL)
+                {
+                    unsigned char width = block_rectangle->size & 0x0F;
+                    unsigned char height = (block_rectangle->size & 0xF0) >> 4;
+                    if (width < height)
+                        force_create_blocks = width;
+                }
+            }
+            else
+            {
+                current_block_line.length++;
+                current_block_line.vertical = false;
+            }
+
+            last_id = block.id;
+        }
+    }
     free(block_rectangle_pointers);
+    free(block_line_pointers);
 
     // we need to sort the block dictionary so that delta encoding works
     unsigned short unsorted_block_ids[BLOCK_SIZE_POWER_OF_TWO];
@@ -685,7 +907,7 @@ void DLL_EXPORT eelvl_to_ctm(struct eelvl *level)
     qsort(block_chunk.different_block_ids, block_chunk.different_block_count,
           sizeof(unsigned short), compare);
 
-    // update block rect's id to the new positions
+    // update block rect's id to the new block dictionary positions
     for (register int i = 0; i < block_chunk.block_rectangle_count; i++)
     {
         struct block_rectangle *block_rectangle = &block_chunk.block_rectangles[i];
@@ -698,30 +920,42 @@ void DLL_EXPORT eelvl_to_ctm(struct eelvl *level)
         block_rectangle->id = location - block_chunk.different_block_ids;
     }
 
+    // also update block line's id to the new block dictionary positions
+    for (register int i = 0; i < block_chunk.block_line_count; i++)
+    {
+        struct block_line *block_line = &block_chunk.block_lines[i];
+        unsigned short id = unsorted_block_ids[block_line->id];
+
+        unsigned short *location;
+        location = (unsigned short*) bsearch(&id, block_chunk.different_block_ids,
+            block_chunk.different_block_count, sizeof(unsigned short), compare);
+
+        block_line->id = location - block_chunk.different_block_ids;
+    }
+
     encode(&block_chunk);
 
     // [delros] print the result, this also counts as a part of decoding a block chunk
     short *ids = calloc(BLOCK_SIZE_POWER_OF_TWO, sizeof(unsigned short));
 
     unsigned short current_position = 0;
-    for (register int i = 0; i < block_chunk.block_rectangle_count; i++)
+    for (register int i = 0; i < block_chunk.block_line_count; i++)
     {
-        struct block_rectangle *block_rectangle = &block_chunk.block_rectangles[i];
+        struct block_line *block_line = &block_chunk.block_lines[i];
 
         unsigned char x = current_position & 0x0F;
         unsigned char y = (current_position & 0xF0) >> 4;
 
-        unsigned short width = 1 + (block_rectangle->size & 0x0F);
-        unsigned short height = 1 + ((block_rectangle->size & 0xF0) >> 4);
+        unsigned char width = 1 + (block_line->vertical == false? block_line->length : 0);
+        unsigned char height = 1 + (block_line->vertical == false? 0 : block_line->length);
 
-        //printf("blockrect | pos: %u,%u | size: %u,%u | id: %c\n", x, y, width - 1, height - 1, i + 49);
+        //printf("blockline | pos: %u,%u | size: %u,%u | id: %c\n", x, y, width - 1, height - 1, i + 49);
 
         for (register int y1 = y; y1 < y + height; y1++)
         {
             for (register int x1 = x; x1 < x + width; x1++)
             {
-                //unsigned char id = block_rectangle->id;
-                ids[x1 + y1*BLOCK_SIZE] = i + 1;//id + 1;
+                ids[x1 + y1*BLOCK_SIZE] = i + 1;
             }
         }
 
@@ -748,8 +982,9 @@ void DLL_EXPORT eelvl_to_ctm(struct eelvl *level)
         }
     }
     printf("\n\n");
-    free(ids);
 
+    free(ids);
     free(block_chunk.block_rectangles);
+    free(block_chunk.block_lines);
     free(block_chunk.different_block_ids);
 }
