@@ -742,7 +742,6 @@ void encode(struct block_chunk *block_chunk)
         }
     }
     //
-
     printf("predicted bit usage (block rectangle compression): %u\n", block_rectangle_chunk_bound);
     printf("predicted bit usage (block line compression): %u\n", block_line_chunk_bound);
     printf("predicted bit usage (positional block rectangle compression): %u\n", block_rectangle_chunk_bound_def_block);
@@ -824,10 +823,10 @@ void DLL_EXPORT eelvl_to_ctm(struct eelvl *level)
     block_chunk.different_block_count = 0;
 
     struct block_rectangle current_block_rectangle;
-    int *block_rectangle_pointers = calloc(BLOCK_SIZE_POWER_OF_TWO, sizeof(int));
+    short *block_rectangle_pointers = calloc(BLOCK_SIZE_POWER_OF_TWO, sizeof(short));
 
     struct block_line current_block_line;
-    int *block_line_pointers = calloc(BLOCK_SIZE_POWER_OF_TWO, sizeof(int));
+    short *block_line_pointers = calloc(BLOCK_SIZE_POWER_OF_TWO, sizeof(short));
 
     unsigned short last_id = 0;
     unsigned char dictionary_position = 0;
