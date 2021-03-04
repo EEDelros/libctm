@@ -550,7 +550,7 @@ void compress_to_positional_block_lines(struct block_chunk *block_chunk)
                 position_usage = position_max_bits;
 
             //position_usage + 1 + length_usage;
-            printf("REAL - total line usage: %u\n", position_usage + 1 + length_usage + length_bit_usage);
+            //printf("REAL - total line usage: %u\n", position_usage + 1 + length_usage + length_bit_usage);
             write_bits(&bit_writer, block_line->position << (8 - position_usage), position_usage);
             write_bits(&bit_writer, block_line->vertical << 7, 1);
             write_bits(&bit_writer, block_line->length << (8 - length_usage), length_usage);
@@ -682,7 +682,7 @@ void encode(struct block_chunk *block_chunk)
         unsigned char y = (block_line->position & 0xF0) >> 4;
         unsigned char length_usage = get_bit_usage(15 - (block_line->vertical == true? y : x));
 
-        printf("line length usage: %u\n", length_usage);
+        //printf("line length usage: %u\n", length_usage);
         block_line_chunk_bound += 1 + length_usage + length_bit_usage;
     }
 
@@ -717,7 +717,7 @@ void encode(struct block_chunk *block_chunk)
     if (biggest_position_delta - 1 > 0)
         position_max_bits = get_bit_usage(biggest_position_delta - 1);
 
-    printf("pos bits limit: %u as highest is %u\n", position_max_bits, biggest_position_delta);
+    //printf("pos bits limit: %u as highest is %u\n", position_max_bits, biggest_position_delta);
 
     unsigned int block_line_chunk_bound_def_block =
         5 + 8 + 4 + 4 + biggest_delta_id_bit_usage*block_chunk->different_block_count + 8;
@@ -735,19 +735,19 @@ void encode(struct block_chunk *block_chunk)
                 position_usage = position_max_bits;
 
             //printf("line pos: %u, bits: %u\n", block_line->position, position_usage);
-            printf("PRED - total line usage: %u\n", position_usage + 1 + length_usage + length_bit_usage);
+            //printf("PRED - total line usage: %u\n", position_usage + 1 + length_usage + length_bit_usage);
 
             block_line_chunk_bound_def_block +=
                 position_usage + 1 + length_usage + length_bit_usage;
         }
     }
     //
-    printf("predicted bit usage (block rectangle compression): %u\n", block_rectangle_chunk_bound);
-    printf("predicted bit usage (block line compression): %u\n", block_line_chunk_bound);
-    printf("predicted bit usage (positional block rectangle compression): %u\n", block_rectangle_chunk_bound_def_block);
-    printf("predicted bit usage (positional block line compression): %u\n", block_line_chunk_bound_def_block);
-    printf("predicted bit usage (block array compression): %u\n", block_array_chunk_bound);
-    printf("predicted bit usage (id array compression): %u\n", id_array_chunk_bound);
+    printf("\nPredicted bit usage (block rectangle compression): %u\n", block_rectangle_chunk_bound);
+    printf("Predicted bit usage (block line compression): %u\n", block_line_chunk_bound);
+    printf("Predicted bit usage (positional block rectangle compression): %u\n", block_rectangle_chunk_bound_def_block);
+    printf("Predicted bit usage (positional block line compression): %u\n", block_line_chunk_bound_def_block);
+    printf("Predicted bit usage (block array compression): %u\n", block_array_chunk_bound);
+    printf("Predicted bit usage (id array compression): %u\n", id_array_chunk_bound);
     printf("\n");
 
     unsigned int predicted_bit_usages[16] =
@@ -928,8 +928,8 @@ void DLL_EXPORT eelvl_to_ctm(struct eelvl *level)
                         skipped_block_rectangle->size = 0;
 
                         block_rectangle_pointers[skipped_position] = block_chunk.block_rectangle_count + 1;
-                        printf("block added at: %u,%u\n",
-                               skipped_position & 0x0F, (skipped_position & 0xF0) >> 4);
+                        /*printf("block added at: %u,%u\n",
+                               skipped_position & 0x0F, (skipped_position & 0xF0) >> 4);*/
 
                         block_chunk.block_rectangle_count++;
                     }
@@ -1039,8 +1039,8 @@ void DLL_EXPORT eelvl_to_ctm(struct eelvl *level)
                         skipped_block_line->vertical = true;
 
                         block_line_pointers[skipped_position] = block_chunk.block_line_count + 1;
-                        printf("block added at: %u,%u\n",
-                               skipped_position & 0x0F, (skipped_position & 0xF0) >> 4);
+                        /*printf("block added at: %u,%u\n",
+                               skipped_position & 0x0F, (skipped_position & 0xF0) >> 4);*/
 
                         block_chunk.block_line_count++;
                     }
@@ -1113,7 +1113,7 @@ void DLL_EXPORT eelvl_to_ctm(struct eelvl *level)
     encode(&block_chunk);
 
     // [delros] print the result, this also counts as a part of decoding a block chunk
-    short *ids = calloc(BLOCK_SIZE_POWER_OF_TWO, sizeof(unsigned short));
+    /*short *ids = calloc(BLOCK_SIZE_POWER_OF_TWO, sizeof(unsigned short));
 
     unsigned short current_position = 0;
     for (register int i = 0; i < block_chunk.block_line_count; i++)
@@ -1151,16 +1151,16 @@ void DLL_EXPORT eelvl_to_ctm(struct eelvl *level)
         for (register int x = 0; x < BLOCK_SIZE; x++)
         {
             unsigned char id = ids[x + y*BLOCK_SIZE] - 1;
-            /*if (id == 1)
-                printf(" ");
-            else
-                printf("#");*/
-            printf("%c", id + 49);
+            //if (id == 1)
+            //    printf(" ");
+            //else
+            //    printf("#");
+            //printf("%c", id + 49);
         }
     }
     printf("\n\n");
+    free(ids);*/
 
-    free(ids);
     free(block_chunk.block_rectangles);
     free(block_chunk.block_lines);
     free(block_chunk.different_block_ids);
