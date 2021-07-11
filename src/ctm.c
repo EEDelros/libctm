@@ -1,6 +1,7 @@
 #include <stdbool.h>
 #include <stdlib.h>
 #include <limits.h>
+#include <zlib.h>
 #include "ctm.h"
 
 unsigned short min(unsigned short a, unsigned short b)
@@ -79,7 +80,7 @@ void compress_to_block_rectangles(struct block_chunk *block_chunk)
     // GET DELTA ID WITH MOST BIT-CONSUMPTION
     unsigned short biggest_delta_id = 0;
     unsigned short last_id = 0;
-    for (register int i = 0; i < block_chunk->different_block_count; i++)
+    for (i = 0; i < block_chunk->different_block_count; i++)
     {
         unsigned short id = block_chunk->different_block_ids[i];
         biggest_delta_id = max(biggest_delta_id, id - last_id);
@@ -559,7 +560,7 @@ void compress_to_positional_block_lines(struct block_chunk *block_chunk)
     }
 
     // were done writing data
-    int data_size = bit_writer.position >> 3;
+    unsigned int data_size = bit_writer.position >> 3;
     if (bit_writer.buffer_position > 0) data_size++;
     end_writer(&bit_writer);
 
@@ -1113,7 +1114,7 @@ void DLL_EXPORT eelvl_to_ctm(struct eelvl *level)
     encode(&block_chunk);
 
     // [delros] print the result, this also counts as a part of decoding a block chunk
-    /*short *ids = calloc(BLOCK_SIZE_POWER_OF_TWO, sizeof(unsigned short));
+    short *ids = calloc(BLOCK_SIZE_POWER_OF_TWO, sizeof(unsigned short));
 
     unsigned short current_position = 0;
     for (register int i = 0; i < block_chunk.block_line_count; i++)
@@ -1155,11 +1156,11 @@ void DLL_EXPORT eelvl_to_ctm(struct eelvl *level)
             //    printf(" ");
             //else
             //    printf("#");
-            //printf("%c", id + 49);
+            printf("%c", id + 49);
         }
     }
     printf("\n\n");
-    free(ids);*/
+    free(ids);
 
     free(block_chunk.block_rectangles);
     free(block_chunk.block_lines);

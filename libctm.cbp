@@ -63,6 +63,15 @@
 		<Unit filename="src/bitwriter.c">
 			<Option compilerVar="CC" />
 		</Unit>
+		<Unit filename="src/chunk/decoders/decode.c">
+			<Option compilerVar="CC" />
+		</Unit>
+		<Unit filename="src/chunk/encoders/rectchunk.c">
+			<Option compilerVar="CC" />
+		</Unit>
+		<Unit filename="src/chunk/utility.c">
+			<Option compilerVar="CC" />
+		</Unit>
 		<Unit filename="src/ctm.c">
 			<Option compilerVar="CC" />
 		</Unit>
